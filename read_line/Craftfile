@@ -1,11 +1,10 @@
-# craftr_module(c.stdin)
+# craftr_module(nr.c_snippets.read_line)
 
 load_module('compiler')
 c = compiler.CCompiler()
 
 objects = c.objects(
   sources = local(['main.c']),
-  obj_dir = local('build/obj'),
 )
 
 main = c.executable(
