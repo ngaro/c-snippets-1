@@ -43,7 +43,7 @@ int read_line(FILE* fp, struct buffer* buf)
       break;
   }
   buf->data[buf->length] = '\0';
-  if (c == EOF)
+  if (buf->length == 0 && c == EOF)
     return 2;
   return 0;
 }
