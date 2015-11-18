@@ -16,6 +16,7 @@ struct buffer
 
 int read_line(FILE* fp, struct buffer* buf)
 {
+  char c;
   if (fp == NULL) {
     free(buf->data);
     buf->data = NULL;
@@ -24,15 +25,15 @@ int read_line(FILE* fp, struct buffer* buf)
     return 0;
   }
 
-  char c;
   buf->length = 0;
   memset(buf->data, 0, buf->size);
   while((c = getc(fp)) != EOF) {
     if (buf->size < buf->length + 2) {  // Including a null terminator
+      char* new_data = NULL;
       size_t new_size = buf->size * 2;
       if (new_size == 0)
         new_size = 1024;
-      char* new_data = realloc(buf->data, new_size);
+      new_data = realloc(buf->data, new_size);
       if (new_data == NULL)
         return 1;  // Memory error
       buf->size = new_size;
