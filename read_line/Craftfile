@@ -4,12 +4,12 @@ load_module('compiler')
 c = compiler.CCompiler()
 
 objects = c.objects(
-  sources = ['main.c'],
+  sources = local(['main.c']),
   obj_dir = local('build/obj'),
 )
 
 main = c.executable(
-  filename = local('main'),
+  filename = 'main',
   inputs = [objects],
   default = True,
 )
