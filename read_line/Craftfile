@@ -1,0 +1,16 @@
+# craftr_module(c.stdin)
+
+load_module('compiler')
+c = compiler.CCompiler()
+
+objects = c.objects(
+  sources = ['main.c'],
+  obj_dir = local('build/obj'),
+)
+
+main = c.executable(
+  filename = local('main'),
+  inputs = [objects],
+  default = True,
+)
+
