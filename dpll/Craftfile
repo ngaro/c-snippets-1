@@ -1,0 +1,13 @@
+# craftr_module(nr.c_snippets.dpll)
+
+load_module('compiler')
+c = compiler.CCompiler()
+
+objects = c.objects(
+  sources = local(['main.c', 'dpll.c']),
+)
+
+main = c.executable(
+  filename = 'dpll',
+  inputs = [objects],
+)
