@@ -36,12 +36,13 @@ int main()
 {
   struct buffer buf = {0, 0, NULL};
   while (!feof(stdin)) {
+    size_t delta = 0;
     if (buffer_resize(&buf, buf.size + BUFSIZ) != 0) {
       fprintf(stderr, "memory error allocating %zu bytes\n", buf.length + BUFSIZ);
       buffer_free(&buf);
       return EXIT_FAILURE;
     }
-    size_t delta = buf.size - buf.length;
+    delta = buf.size - buf.length;
     buf.length += fread(buf.data + buf.length, 1, delta - 1, stdin);
   }
   buf.data[buf.length] = '\0';
