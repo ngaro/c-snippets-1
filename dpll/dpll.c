@@ -50,7 +50,9 @@ static bool skip_char(FILE* fp, int c);
 static bool match_token(FILE* fp, const char* str);
 
 // Internal procedure to solve a clause_set.
-static bool _clause_set_solve(struct clause_set* set, bool* out_values, long long last_var);
+static bool _clause_set_solve(
+  struct clause_set* set, bool* out_values, bool* pre_cond, long long last_var,
+  clause_set_solve_callback callback, void* userdata, bool* sat, bool* search);
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
@@ -100,7 +102,7 @@ int clause_add(struct clause* clause, long long const var)
   if (clause->count + 1 > clause->capacity) {
     size_t new_capacity = clause->capacity + clause_chunksize;
     long long* new_vars = realloc(clause->vars, sizeof(*new_vars) * new_capacity);
-    bool* new_eliminate = realloc(clause->eliminate, sizeof(*new_eliminate) * new_capacity);
+    int* new_eliminate = realloc(clause->eliminate, sizeof(*new_eliminate) * new_capacity);
     if (new_vars == NULL || new_eliminate == NULL) {
       // Memory error. We free the clause so no invalid frees can happen
       // if a realloc() call succeeded for one of the memory blocks and
@@ -116,7 +118,7 @@ int clause_add(struct clause* clause, long long const var)
   }
 
   clause->vars[clause->count] = var;
-  clause->eliminate[clause->count] = false;
+  clause->eliminate[clause->count] = 0;
   clause->count++;
   return 0;
 }
@@ -128,7 +130,7 @@ bool clause_shrink_to_fit(struct clause* clause)
   assert(clause->count <= clause->capacity);
   if (clause->count < clause->capacity) {
     long long* new_vars = realloc(clause->vars, sizeof(*new_vars) * clause->count);
-    bool* new_eliminate = realloc(clause->eliminate, sizeof(*new_eliminate) * clause->count);
+    int* new_eliminate = realloc(clause->eliminate, sizeof(*new_eliminate) * clause->count);
     if (new_vars == NULL || new_eliminate == NULL) {
       // Memory error. We free the clause so no invalid frees can happen
       // if a realloc() call succeeded for one of the memory blocks and
@@ -151,7 +153,7 @@ bool clause_is_empty(struct clause* clause)
 {
   size_t index;
   for (index = 0; index < clause->count; ++index) {
-    if (!clause->eliminate[index])
+    if (clause->eliminate[index] == 0)
       return false;
   }
   return true;
@@ -188,7 +190,7 @@ bool clause_set_add(struct clause_set* set, size_t* out_index)
   if (set->count + 1 > set->capacity) {
     size_t new_capacity = set->capacity + clause_set_chunksize;
     struct clause* new_array = realloc(set->array, sizeof(*new_array) * new_capacity);
-    bool* new_eliminate = realloc(set->eliminate, sizeof(*new_eliminate) * new_capacity);
+    int* new_eliminate = realloc(set->eliminate, sizeof(*new_eliminate) * new_capacity);
     if (new_array == NULL || new_eliminate == NULL) {
       free(new_array);
       free(new_eliminate);
@@ -338,7 +340,7 @@ bool clause_set_is_empty(struct clause_set* set)
 {
   size_t index;
   for (index = 0; index < set->count; ++index) {
-    if (!set->eliminate[index])
+    if (set->eliminate[index] == 0)
       return false;
   }
   return true;
@@ -348,16 +350,18 @@ bool clause_set_is_empty(struct clause_set* set)
 //-----------------------------------------------------------------------------
 bool clause_set_eliminate(struct clause_set* set, long long var, bool reset)
 {
+  bool result = true;
+  int add = (reset ? -1 : 1);
   size_t index;
   for (index = 0; index < set->count; ++index) {
     size_t j;
     struct clause* clause = &set->array[index];
     for (j = 0; j < clause->count; ++j) {
       if (clause->vars[j] == var) {
-        set->eliminate[index] = !reset;
+        set->eliminate[index] += add;
       }
       else if (clause->vars[j] == -var) {
-        clause->eliminate[j] = !reset;
+        clause->eliminate[j] += add;
         if (!reset && clause_is_empty(clause))
           return false;
       }
@@ -368,46 +372,67 @@ bool clause_set_eliminate(struct clause_set* set, long long var, bool reset)
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
-bool clause_set_solve(struct clause_set* set, bool** out_values)
+bool clause_set_solve(
+  struct clause_set* set, bool** out_values,
+  clause_set_solve_callback callback, void* userdata)
 {
+  bool sat = false;
+  bool search = true;
+  bool* pre_cond = malloc(sizeof(bool) * set->num_vars);
   *out_values = malloc(sizeof(bool) * set->num_vars);
-  if (!*out_values) {
+  if (!*out_values || !pre_cond) {
     return false;
   }
-  if (!_clause_set_solve(set, *out_values, 0)) {
+  _clause_set_solve(set, *out_values, pre_cond, 0, callback, userdata, &sat, &search);
+  if (!sat) {
     free(*out_values);
     *out_values = NULL;
-    return false;
   }
-  return true;
+  return sat;
 }
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
-bool _clause_set_solve(struct clause_set* set, bool* out_values, long long last_var)
+bool _clause_set_solve(
+  struct clause_set* set, bool* out_values, bool* pre_cond, long long last_var,
+  clause_set_solve_callback callback, void* userdata, bool* sat, bool* search)
 {
+  int i;
   long long curr_var = last_var + 1;
   assert(last_var <= set->num_vars);
+
+  if (!*search)
+    return false;
+
   if (last_var == set->num_vars) {
-    return clause_set_is_empty(set);
+    if (clause_set_is_empty(set)) {
+      *sat = true;
+      if (callback)
+        *search = callback(set->num_vars, out_values, userdata);
+      else
+        *search = false;
+      return true;
+    }
+    return false;
   }
 
   // xxx: eventually find a better literal than just the next. (ie. from
-  // a clause that only contains that literal).
+  // a clause that only contains that literal). Use pre_cond for that!
 
-  if (clause_set_eliminate(set, curr_var, false) &&_clause_set_solve(set, out_values, curr_var)) {
-    out_values[curr_var - 1] = true;
-    return true;
+  out_values[curr_var - 1] = true;
+  if (clause_set_eliminate(set, curr_var, false) && _clause_set_solve(set, out_values, pre_cond, curr_var, callback, userdata, sat, search)) {
+    if (!*search)
+      return true;
   }
   clause_set_eliminate(set, curr_var, true);  // revert
 
-  if (clause_set_eliminate(set, -curr_var, false) && _clause_set_solve(set, out_values, curr_var)) {
-    out_values[curr_var - 1] = false;
-    return true;
+  out_values[curr_var - 1] = false;
+  if (clause_set_eliminate(set, -curr_var, false) && _clause_set_solve(set, out_values, pre_cond, curr_var, callback, userdata, sat, search)) {
+    if (!*search)
+      return true;
   }
   clause_set_eliminate(set, -curr_var, true);  // revert
-
-  return false;
+  return false;;
 }
 
 //-----------------------------------------------------------------------------

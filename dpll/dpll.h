@@ -43,9 +43,10 @@ struct clause
   // the literal is negated.
   long long* vars;
 
-  // An array of #count boolean values that indicate wether the respective
-  // literal is eliminate from the clause.
-  bool* eliminate;
+  // An array of #count values that indicate wether the respective
+  // literal is eliminate from the clause. A non-zero value indicates
+  // that the literal is eliminated.
+  int* eliminate;
 };
 
 // Initialize an empty clause.
@@ -88,9 +89,10 @@ struct clause_set
   // An array of #count clasues.
   struct clause* array;
 
-  // An array of #count boolean values that indicate that wether the
-  // respective clause is eliminated.
-  bool* eliminate;
+  // An array of #count values that indicate that wether the
+  // respective clause is eliminated. A non-zero value indicates
+  // that the clause is eliminated.
+  int* eliminate;
 };
 
 // Initialize an empty clause_set.
@@ -128,11 +130,19 @@ bool clause_set_parse(struct clause_set* set, FILE* fp);
 // Format the clause, parsable by clause_set_parse().
 void clause_set_format(struct clause_set* set, FILE* fp);
 
+typedef bool (*clause_set_solve_callback)(
+  size_t num_vars, bool* out_values, void* userdata);
+
 // Solve the specified clause_set to find the first possible solution.
 // Return true if the clause_set is satisfiable, false if not. If true
 // is returned, \p out_values is set and must be freed using free().
 // Set #errno if an error occurs.
-bool clause_set_solve(struct clause_set* set, bool** out_values);
-
+//
+// If \p callback is specified, the function attempts to find all
+// possible solutions until the callback returns false. The returned
+// \p out_values will be the last solution found instead of the first.
+bool clause_set_solve(
+  struct clause_set* set, bool** out_values,
+  clause_set_solve_callback callback, void* userdata);
 
 #endif // DPLL_H_

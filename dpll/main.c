@@ -10,9 +10,24 @@
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
+bool sat_callback(size_t num_vars, bool* values, void* userdata)
+{
+  size_t index;
+  fputs("SAT\n", stdout);
+  for (index = 0; index < num_vars; ++index) {
+    if (values[index])
+      printf(" %d\n", index + 1);
+    else
+      printf("-%d\n", index + 1);
+  }
+  printf("\n");
+  return true;
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
 int main()
 {
-
   int res;
   size_t index;
   bool* values = NULL;
@@ -23,18 +38,12 @@ int main()
     return EXIT_FAILURE;
   }
 
-  res = clause_set_solve(&set, &values);
-  if (!res) {
+  fputs("checking SAT...\n", stderr);
+  if (!clause_set_solve(&set, &values, sat_callback, NULL)) {
     fputs("UNSAT\n", stdout);
     return EXIT_SUCCESS;
   }
-
-  fputs("SAT\n", stdout);
-  for (index = 0; index < set.num_vars; ++index) {
-    if (values[index])
-      printf(" %d\n", index + 1);
-    else
-      printf("-%d\n", index + 1);
-  }
+  free(values);
+  values = NULL;
   return 0;
 }
