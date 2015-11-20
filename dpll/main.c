@@ -6,28 +6,20 @@
 
 #include "dpll.h"
 #include <stdlib.h>
+#include <errno.h>
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 int main()
 {
+
   int res;
   size_t index;
   bool* values = NULL;
   struct clause_set set;
   clause_set_init(&set);
-  res = clause_set_parse(&set, stdin);
-  switch (res) {
-    case 0:
-      break;
-    case -1:
-      fputs("memory error\n", stderr);
-      return EXIT_FAILURE;
-    case 1:
-    default:
-      fputs("invalid input format\n", stderr);
-      return EXIT_FAILURE;
-  }
+  if (!clause_set_parse(&set, stdin))
+    return EXIT_FAILURE;
 
   res = clause_set_solve(&set, &values);
   if (!res) {
@@ -38,9 +30,9 @@ int main()
   fputs("SAT\n", stdout);
   for (index = 0; index < set.num_vars; ++index) {
     if (values[index])
-      printf(" %d\n", index);
+      printf(" %d\n", index + 1);
     else
-      printf("-%d\n", index);
+      printf("-%d\n", index + 1);
   }
   return 0;
 }

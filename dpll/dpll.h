@@ -56,11 +56,6 @@ int clause_add(struct clause* clause, long long const var);
 // the clause in case of a memory error.
 bool clause_shrink_to_fit(struct clause* clause);
 
-// Eliminate a variable from the clause or re-activate it. Return true
-// if the variable is actually in the clause, false if not and nothing
-// changed.
-bool clause_eliminate(struct clause* clause, long long const var, bool eliminate);
-
 // Return true if all variables of the clause are eliminated, which
 // is equal to an empty clause. An empty clause evaluates to false.
 bool clause_is_empty(struct clause* clause);
@@ -71,7 +66,9 @@ bool clause_is_empty(struct clause* clause);
 struct clause_set
 {
   // The number of variables used in the clauses. Must be updated manually
-  // when new variables are introduced.
+  // when new variables are introduced. Remember that the index of a variable
+  // is offset by one, since we can't use the variable 0 as it can not be
+  // negative.
   size_t num_vars;
 
   // The number of clauses present in the set.
@@ -80,8 +77,12 @@ struct clause_set
   // The capacity of the buffer.
   size_t capacity;
 
-  // An array of #capacity clasues.
+  // An array of #count clasues.
   struct clause* array;
+
+  // An array of #count boolean values that indicate that wether the
+  // respective clause is eliminated.
+  bool* eliminate;
 };
 
 // Initialize an empty clause_set.
@@ -94,17 +95,33 @@ void clause_set_free(struct clause_set* set);
 // Return true on succes, false on memory error.
 bool clause_set_add(struct clause_set* set, size_t* out_index);
 
+// Return true if the clause_set is empty.
+bool clause_set_is_empty(struct clause_set* set);
+
+// Eliminate all clauses that contain the specified variable and
+// eliminate all variables in all clauses that contain the invert
+// of that variable. If \p reset is true, all changes made will
+// be reverted.
+// Return false if a clause is empty after this call.
+bool clause_set_eliminate(struct clause_set* set, long long var, bool reset);
+
 // Parse clauses from a FILE into a clause_set. The first line in
 // the file must contain a single number, which is the number of
 // variables used. All folllowing lines represent a clause each.
-// Variable indices start at zero. Negated variables can be represented
-// by the variable index * -1.
-// Return -1 on memory error, 1 on file structure error and 0 on success.
-int clause_set_parse(struct clause_set* set, FILE* fp);
+// Variable indices start at one (!!). Negated variables can be
+// represented by the variable index * -1.
+// Return true on success, false on error. #errno is set if the
+// function returned false.
+bool clause_set_parse(struct clause_set* set, FILE* fp);
+
+// Format the clause, parsable by clause_set_parse().
+void clause_set_format(struct clause_set* set, FILE* fp);
 
 // Solve the specified clause_set to find the first possible solution.
 // Return true if the clause_set is satisfiable, false if not. If true
 // is returned, \p out_values is set and must be freed using free().
+// Set #errno if an error occurs.
 bool clause_set_solve(struct clause_set* set, bool** out_values);
+
 
 #endif // DPLL_H_
