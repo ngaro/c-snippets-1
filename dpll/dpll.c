@@ -4,9 +4,12 @@
  * dpll/dpll.c
  */
 
+#define _FILE_OFFSET_BITS 64
+
 #include "dpll.h"
 #include <assert.h>
 #include <errno.h>
+#include <stdarg.h>
 #include <stdlib.h>
 
 // MSVC does not support the %zu format specifier.
@@ -14,6 +17,13 @@
 # define PRsize_t "%lu"
 #else
 # define PRsize_t "%zu"
+#endif
+
+// MSVC does not supprt ftello(), fseeko() and off_t.
+#ifdef _MSC_VER
+# define ftello _ftelli64
+# define fseeko _fseeki64
+typedef __int64 off_t;
 #endif
 
 // The increment for the capacity of a clause and clause_set.
@@ -36,8 +46,25 @@ static void skip_whitespace(FILE* fp);
 // to in the file. Return true if the character was skipped, false if not.
 static bool skip_char(FILE* fp, int c);
 
+// Match the specified text from the current position in the file.
+static bool match_token(FILE* fp, const char* str);
+
 // Internal procedure to solve a clause_set.
 static bool _clause_set_solve(struct clause_set* set, bool* out_values, long long last_var);
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+char dpll_errinfo[BUFSIZ] = {0};
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+void dpll_puterr(const char* fmt, ...)
+{
+  va_list args;
+  va_start(args, fmt);
+  vsnprintf(dpll_errinfo, BUFSIZ, fmt, args);
+  va_end(args);
+}
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
@@ -62,7 +89,7 @@ void clause_free(struct clause* clause)
 //-----------------------------------------------------------------------------
 int clause_add(struct clause* clause, long long const var)
 {
-  // Check if the variable already exist.
+  // Check if the literal already exist.
   size_t index;
   for (index = 0; index < clause->count; ++index) {
     if (clause->vars[index] == var)
@@ -183,23 +210,47 @@ bool clause_set_add(struct clause_set* set, size_t* out_index)
 bool clause_set_parse(struct clause_set* set, FILE* fp)
 {
   int res;
-  long long value;
+  long long value, num_vars, num_clauses;
   static size_t size_max = (size_t) -1;
 
-  if (!read_long_long(fp, &value))
-    return false;
-  if (value < 0 || value > size_max) {
-    errno = EINVAL;
-    fprintf(stderr, "clause_set_parse(): variable count too big or not positive");
+  // Skip all comment lines.
+  while (skip_char(fp, 'c')) {
+    int c;
+    while ((c = getc(fp)) != '\n')
+      ;
+  }
+
+  // Read the pre conditions.
+  if (!skip_char(fp, 'p')) {
+    dpll_puterr("clause_set_parse(): expected 'p' instruction");
     return false;
   }
-  set->num_vars = (size_t) value;
+  skip_whitespace(fp);
+  if (!match_token(fp, "cnf")) {
+    dpll_puterr("clause_set_parse(): expected 'cnf' token");
+    return false;
+  }
+  skip_whitespace(fp);
+  if (!read_long_long(fp, &num_vars)) {
+    dpll_puterr("clause_set_parse(): expected num vars");
+    return false;
+  }
+  skip_whitespace(fp);
+  if (!read_long_long(fp, &num_clauses))
+    num_clauses = 0;
+
+  if (num_vars < 0 || num_vars > size_max) {
+    errno = EINVAL;
+    dpll_puterr("clause_set_parse(): literal count too big or not positive");
+    return false;
+  }
+  set->num_vars = (size_t) num_vars;
 
   skip_whitespace(fp);
   if (!skip_char(fp, '\n')) {
-    // expected newline after number of variables.
+    // expected newline after number of literals.
     errno = EINVAL;
-    fprintf(stderr, "clause_set_parse(): expected newline after variable count");
+    dpll_puterr("clause_set_parse(): expected newline after 'p' instruction, got %c", getc(fp));
     return false;
   }
 
@@ -216,26 +267,32 @@ bool clause_set_parse(struct clause_set* set, FILE* fp)
 
     if (!clause_set_add(set, &index)) {
       errno = ENOMEM;
-      fprintf(stderr, "clause_set_parse(): could not add new clause");
+      dpll_puterr("clause_set_parse(): could not add new clause");
       return false;
     }
     clause = &set->array[index];
 
     while (true) {
       skip_whitespace(fp);
-      if (skip_char(fp, '\n'))
+      if (skip_char(fp, '0')) {
+        skip_whitespace(fp);
+        if (!skip_char(fp, '\n')) {
+          dpll_puterr("clause_set_parse(): clause #"PRsize_t": expected newline after clause terminator", index);
+          return false;
+        }
         break;
+      }
 
       if (!read_long_long(fp, &value)) {
         errno = EINVAL;
-        fprintf(stderr, "clause_set_parse(): clause #"PRsize_t": expected variable ", index);
+        dpll_puterr("clause_set_parse(): clause #"PRsize_t": expected literal ", index);
         return false;
       }
 
       if (value < -(long long)set->num_vars || value > set->num_vars || value == 0) {
         errno = EINVAL;
-        fprintf(stderr,
-          "clause_set_parse(): clause #"PRsize_t": variable "
+        dpll_puterr(
+          "clause_set_parse(): clause #"PRsize_t": literal "
           "'%llu' not in range", index, value);
         return false;
       }
@@ -243,15 +300,16 @@ bool clause_set_parse(struct clause_set* set, FILE* fp)
       res = clause_add(clause, value);
       if (res == -1) {
         errno = ENOMEM;
-        fprintf(stderr, "clause_set_parse(): could not add variable to clause");
+        dpll_puterr("clause_set_parse(): could not add literal to clause");
         return false;
       }
       else if (res == 1) {
-        fprintf(stderr,
+        dpll_puterr(
           "clause_set_parse(): warning: clause #"PRsize_t": "
-          "contains duplicate variable '%llu'", index, value);
+          "contains duplicate literal '%llu'", index, value);
       }
       else assert(res == 0);
+      clause_shrink_to_fit(clause);
     }
   }
 
@@ -334,8 +392,8 @@ bool _clause_set_solve(struct clause_set* set, bool* out_values, long long last_
     return clause_set_is_empty(set);
   }
 
-  // xxx: eventually find a better variable than just the next. (ie. from
-  // a clause that only contains that variable).
+  // xxx: eventually find a better literal than just the next. (ie. from
+  // a clause that only contains that literal).
 
   if (clause_set_eliminate(set, curr_var, false) &&_clause_set_solve(set, out_values, curr_var)) {
     out_values[curr_var - 1] = true;
@@ -406,5 +464,19 @@ bool skip_char(FILE* fp, int c)
   if (h == c)
     return true;
   ungetc(h, fp);
+  return false;
+}
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+bool match_token(FILE* fp, const char* str)
+{
+  off_t pos = ftello(fp);
+  int c;
+  while (*str && (c = getc(fp)) == *str) {
+    str++;
+  }
+  if (!*str) return true;
+  fseeko(fp, pos, 0);
   return false;
 }

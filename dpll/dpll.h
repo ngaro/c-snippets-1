@@ -11,6 +11,14 @@
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
+// Latest error infromation. Allocated with malloc(). Modify with dpll_puterr().
+extern char dpll_errinfo[BUFSIZ];
+
+// Update the #dpll_errinfo, freeing the previous value.
+void dpll_puterr(const char* fmt, ...);
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
 enum bool
 {
   false,
@@ -23,7 +31,7 @@ typedef enum bool bool;
 //-----------------------------------------------------------------------------
 struct clause
 {
-  // The number of variables in #vars;
+  // The number of literals in #vars;
   size_t count;
 
   // The capacity of #vars. While the clause is built, this is likely
@@ -31,12 +39,12 @@ struct clause
   // memory can be shrinked with clause_shrink_to_fit().
   size_t capacity;
 
-  // An array of #count variable indices. A negative value indicates that
-  // the variable is negated.
+  // An array of #count literal indices. A negative value indicates that
+  // the literal is negated.
   long long* vars;
 
   // An array of #count boolean values that indicate wether the respective
-  // variable is eliminate from the clause.
+  // literal is eliminate from the clause.
   bool* eliminate;
 };
 
@@ -46,7 +54,7 @@ void clause_init(struct clause* clause);
 // Free a clause.
 void clause_free(struct clause* clause);
 
-// Append the specified variable to the clause. Return 1 if the variable
+// Append the specified literal to the clause. Return 1 if the literal
 // is already in the clause, -1 on a memory error and 0 on success. Free
 // the clause in case of a memory error.
 int clause_add(struct clause* clause, long long const var);
@@ -56,7 +64,7 @@ int clause_add(struct clause* clause, long long const var);
 // the clause in case of a memory error.
 bool clause_shrink_to_fit(struct clause* clause);
 
-// Return true if all variables of the clause are eliminated, which
+// Return true if all literals of the clause are eliminated, which
 // is equal to an empty clause. An empty clause evaluates to false.
 bool clause_is_empty(struct clause* clause);
 
@@ -65,9 +73,9 @@ bool clause_is_empty(struct clause* clause);
 //-----------------------------------------------------------------------------
 struct clause_set
 {
-  // The number of variables used in the clauses. Must be updated manually
-  // when new variables are introduced. Remember that the index of a variable
-  // is offset by one, since we can't use the variable 0 as it can not be
+  // The number of literals used in the clauses. Must be updated manually
+  // when new literals are introduced. Remember that the index of a literal
+  // is offset by one, since we can't use the literal 0 as it can not be
   // negative.
   size_t num_vars;
 
@@ -98,18 +106,21 @@ bool clause_set_add(struct clause_set* set, size_t* out_index);
 // Return true if the clause_set is empty.
 bool clause_set_is_empty(struct clause_set* set);
 
-// Eliminate all clauses that contain the specified variable and
-// eliminate all variables in all clauses that contain the invert
-// of that variable. If \p reset is true, all changes made will
+// Eliminate all clauses that contain the specified literal and
+// eliminate all literals in all clauses that contain the invert
+// of that literal. If \p reset is true, all changes made will
 // be reverted.
 // Return false if a clause is empty after this call.
 bool clause_set_eliminate(struct clause_set* set, long long var, bool reset);
 
-// Parse clauses from a FILE into a clause_set. The first line in
-// the file must contain a single number, which is the number of
-// variables used. All folllowing lines represent a clause each.
-// Variable indices start at one (!!). Negated variables can be
-// represented by the variable index * -1.
+// Parse a DIMACS CNF file from the specified FILE and fills the
+// clause_set \p set. As an additional, this parser function does
+// not require the clause count to be specified in the \c p
+// line of the input file.
+//
+// For more information on the DIMACS CNF format, see:
+//   http://logic.pdmi.ras.ru/~basolver/dimacs.html
+//
 // Return true on success, false on error. #errno is set if the
 // function returned false.
 bool clause_set_parse(struct clause_set* set, FILE* fp);

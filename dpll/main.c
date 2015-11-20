@@ -18,8 +18,10 @@ int main()
   bool* values = NULL;
   struct clause_set set;
   clause_set_init(&set);
-  if (!clause_set_parse(&set, stdin))
+  if (!clause_set_parse(&set, stdin)) {
+    printf("error: %s\n", dpll_errinfo);
     return EXIT_FAILURE;
+  }
 
   res = clause_set_solve(&set, &values);
   if (!res) {
