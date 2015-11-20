@@ -294,7 +294,7 @@ bool clause_set_parse(struct clause_set* set, FILE* fp)
         return false;
       }
 
-      if (value < -(long long)set->num_vars || value > set->num_vars || value == 0) {
+      if (value < -num_vars || value > num_vars || value == 0) {
         errno = EINVAL;
         dpll_puterr(
           "clause_set_parse(): clause #"PRsize_t": literal "
@@ -353,7 +353,6 @@ bool clause_set_is_empty(struct clause_set* set)
 //-----------------------------------------------------------------------------
 bool clause_set_eliminate(struct clause_set* set, long long var, bool reset)
 {
-  bool result = true;
   int add = (reset ? -1 : 1);
   size_t index;
   for (index = 0; index < set->count; ++index) {
@@ -400,7 +399,6 @@ bool _clause_set_solve(
   struct clause_set* set, bool* out_values, bool* pre_cond, long long last_var,
   clause_set_solve_callback callback, void* userdata, bool* sat, bool* search)
 {
-  int i;
   long long curr_var = last_var + 1;
   assert(last_var <= set->num_vars);
 
