@@ -2,9 +2,11 @@
 
 load_module('compiler')
 c = compiler.CCompiler()
+c.detect()
 
 objects = c.objects(
   sources = local(['main.c', 'dpll.c']),
+  warning_level = 'all',
 )
 
 main = c.executable(

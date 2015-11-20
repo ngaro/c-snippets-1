@@ -8,7 +8,10 @@
 
 #include "dpll.h"
 #include <assert.h>
+#include <ctype.h>  // isspace
 #include <errno.h>
+#include <limits.h>
+#include <math.h>
 #include <stdarg.h>
 #include <stdlib.h>
 
@@ -328,7 +331,7 @@ void clause_set_format(struct clause_set* set, FILE* fp)
     size_t j;
     struct clause* clause = &set->array[index];
     for (j = 0; j < clause->count; ++j) {
-      printf("%d ", clause->vars[j]);
+      printf("%lld ", clause->vars[j]);
     }
     printf("\n");
   }

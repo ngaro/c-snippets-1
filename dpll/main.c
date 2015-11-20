@@ -16,9 +16,9 @@ bool sat_callback(size_t num_vars, bool* values, void* userdata)
   fputs("SAT\n", stdout);
   for (index = 0; index < num_vars; ++index) {
     if (values[index])
-      printf(" %d\n", index + 1);
+      printf(" %lu\n", index + 1);
     else
-      printf("-%d\n", index + 1);
+      printf("-%lu\n", index + 1);
   }
   printf("\n");
   return true;
@@ -28,8 +28,6 @@ bool sat_callback(size_t num_vars, bool* values, void* userdata)
 //-----------------------------------------------------------------------------
 int main()
 {
-  int res;
-  size_t index;
   bool* values = NULL;
   struct clause_set set;
   clock_t tstart = 0, tdelta = 0;
