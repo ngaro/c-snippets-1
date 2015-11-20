@@ -4,7 +4,21 @@
  * dpll/dpll.c
  */
 
-#define _FILE_OFFSET_BITS 64
+#ifdef _MSC_VER
+  // MSVC does not support the %zu format specifier.
+  #define PRsize_t "%lu"
+
+  // MSVC has no ftello(), fseeko(),
+  #define _FILE_OFFSET_BITS 64
+  #define ftello _ftelli64
+  #define fseeko _fseeki64
+  typedef __int64 off_t;
+
+  #define _CRT_SECURE_NO_WARNINGS
+  #pragma warning(disable : 4127)  //  conditional expression is constant
+#else
+  #define PRsize_t "%zu"
+#endif
 
 #include "dpll.h"
 #include <assert.h>
@@ -14,20 +28,6 @@
 #include <math.h>
 #include <stdarg.h>
 #include <stdlib.h>
-
-// MSVC does not support the %zu format specifier.
-#ifdef _MSC_VER
-# define PRsize_t "%lu"
-#else
-# define PRsize_t "%zu"
-#endif
-
-// MSVC does not supprt ftello(), fseeko() and off_t.
-#ifdef _MSC_VER
-# define ftello _ftelli64
-# define fseeko _fseeki64
-typedef __int64 off_t;
-#endif
 
 // The increment for the capacity of a clause and clause_set.
 static size_t const clause_chunksize = 16;
@@ -216,7 +216,7 @@ bool clause_set_parse(struct clause_set* set, FILE* fp)
 {
   int res;
   long long value, num_vars, num_clauses;
-  static size_t size_max = (size_t) -1;
+  static long long size_max = (size_t) -1;
 
   // Skip all comment lines.
   while (skip_char(fp, 'c')) {
@@ -400,7 +400,7 @@ bool _clause_set_solve(
   clause_set_solve_callback callback, void* userdata, bool* sat, bool* search)
 {
   long long curr_var = last_var + 1;
-  assert(last_var <= set->num_vars);
+  assert(last_var <= (long long) set->num_vars);
 
   if (!*search)
     return false;
@@ -441,7 +441,7 @@ bool _clause_set_solve(
 static bool read_long_long(FILE* fp, long long* result)
 {
   int c;
-  size_t const max_digits = floor(log10(LLONG_MAX)) + 1;
+  size_t const max_digits = (size_t) floor(log10((double) LLONG_MAX)) + 1;
   size_t digits = 0;
   bool negative = false;
 
