@@ -1,0 +1,7 @@
+# craftr_module(nr.c_snippets.endianess)
+
+load_module('compiler')
+c = compiler.CCompiler()
+
+objects = c.objects(sources=local(['main.c']))
+main = c.executable(filename='main', inputs=[objects])
