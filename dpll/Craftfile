@@ -1,15 +1,18 @@
 # craftr_module(nr.c_snippets.dpll)
 
-load_module('compiler')
-c = compiler.CCompiler()
-c.detect()
+from craftr import path
+from craftr.ext.compiler import get_platform_toolset
+tools = get_platform_toolset()
+cc = tools.CCompiler(detect=True)
+ld = tools.Linker()
 
-objects = c.objects(
-  sources = local(['main.c', 'dpll.c']),
-  warning_level = 'all',
+objects = cc.compile(
+  sources = path.local(['main.c', 'dpll.c']),
+  warn = 'all',
 )
 
-main = c.executable(
-  filename = 'dpll',
-  inputs = [objects],
+dpll = ld.link(
+  inputs = objects,
+  output = 'dpll',
+  output_type = 'bin',
 )

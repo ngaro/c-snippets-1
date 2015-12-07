@@ -1,15 +1,17 @@
 # craftr_module(nr.c_snippets.read_line)
 
-load_module('compiler')
-c = compiler.CCompiler()
+from craftr import path
+from craftr.ext.compiler import get_platform_toolset
+tools = get_platform_toolset()
+cc = tools.CCompiler(detect=True)
+ld = tools.Linker()
 
-objects = c.objects(
-  sources = local(['main.c']),
+objects = cc.compile(
+  sources = path.local(['main.c']),
 )
 
-main = c.executable(
-  filename = 'main',
+main = ld.link(
   inputs = [objects],
-  default = True,
+  output = 'main',
 )
 
