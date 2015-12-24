@@ -1,10 +1,9 @@
 # craftr_module(nr.c_snippets.endianess)
 
 from craftr import path
-from craftr.ext.compiler import get_platform_toolset
-tools = get_platform_toolset()
-cc = tools.CCompiler(detect=True)
-ld = tools.Linker()
+from craftr.ext import rules
+from craftr.ext.platform import cc, ld
 
 objects = cc.compile(sources=path.local(['main.c']))
 main = ld.link(inputs=objects, output='main')
+run = rules.run(main)

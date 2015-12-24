@@ -1,19 +1,17 @@
 # craftr_module(nr.c_snippets.opencl_test)
 
-from craftr import path, platform
-from craftr.ext.compiler import get_platform_toolset
+from craftr import path
+from craftr.ext import platform
+from craftr.ext.platform import cxx, ld
 from craftr.ext.compiler.nvcc import NvccCompiler
 
-cc = get_platform_toolset().CCompiler()
-ld = get_platform_toolset().Linker()
 opencl = NvccCompiler().get_opencl_context()
-print(opencl)
 
 includes = [path.local('clfix')]
 if platform.name == 'Windows':
   includes.append(path.local('winfix'))
 
-objects = cc.compile(
+objects = cxx.compile(
   sources = [path.local('main.cpp')],
   includes = includes,
   frameworks = [opencl],
