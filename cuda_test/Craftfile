@@ -1,6 +1,7 @@
 # craftr_module(nr.c_snippets.cuda_test)
 
 from craftr import path
+from craftr.ext import rules
 from craftr.ext.platform import cc, ld
 from craftr.ext.compiler import nvcc
 
@@ -17,6 +18,6 @@ main = ld.link(
   inputs = [cuda_objects],
   output = 'main',
   debug = debug,
-  libs = cuda_objects.meta['libs'],
-  libpath = cuda_objects.meta['libpath'],
 )
+
+run = rules.run(main)

@@ -1,19 +1,19 @@
 # craftr_module(nr.c_snippets.opencl_test)
 
 from craftr import path
-from craftr.ext import platform
+from craftr.ext import platform, rules
 from craftr.ext.platform import cxx, ld
 from craftr.ext.compiler.nvcc import NvccCompiler
 
 opencl = NvccCompiler().get_opencl_context()
 
-includes = [path.local('clfix')]
+include = [path.local('clfix')]
 if platform.name == 'Windows':
-  includes.append(path.local('winfix'))
+  include.append(path.local('winfix'))
 
 objects = cxx.compile(
   sources = [path.local('main.cpp')],
-  includes = includes,
+  include = include,
   frameworks = [opencl],
 )
 
@@ -22,3 +22,5 @@ main = ld.link(
   output = 'main',
   frameworks = [opencl],
 )
+
+run = rules.run(main)
