@@ -1,0 +1,9 @@
+# -*- mode: python; -*-
+# craftr_module(nr.c_snippets)
+
+from craftr import *
+
+import_file('dpll/Craftfile')
+import_file('endianess/Craftfile')
+import_file('read_line/Craftfile')
+import_file('read_stdin/Craftfile')
