@@ -12,4 +12,5 @@ dpll = ld.link(
   inputs = objects,
   output = 'dpll',
   output_type = 'bin',
+  gcc_libs = ['m'],
 )
